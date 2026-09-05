@@ -8,7 +8,7 @@
 # Usage:
 #   ./install_linux.sh                 # auto-detect GPU/CPU
 #   ./install_linux.sh --cpu           # force CPU-only PyTorch
-#   ./install_linux.sh --cuda cu126    # force a specific CUDA wheel index
+#   ./install_linux.sh --cuda cu128    # force a specific CUDA wheel index
 #   ./install_linux.sh --venv .venv    # custom virtualenv directory
 #
 # After installation:
@@ -22,7 +22,11 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 VENV_DIR="venv"
 FORCE_MODE=""          # "cpu" | "cuda" | "" (auto)
-CUDA_INDEX="cu126"     # default CUDA wheel index; matches CUDA 12.x drivers
+# cu128 is required for RTX 50-series (Blackwell, compute capability 12.x) --
+# older indexes like cu121/cu126 lack sm_120 kernels and cause hangs, silent
+# CPU fallback, or "no kernel image is available" errors on those GPUs.
+# cu128 wheels also run fine on older (Ampere/Ada) NVIDIA GPUs.
+CUDA_INDEX="cu128"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -80,6 +84,17 @@ if [[ -z "$MODE" ]]; then
     else
         MODE="cpu"
         info "No NVIDIA GPU detected -> installing CPU-only PyTorch."
+    fi
+fi
+
+if [[ "$MODE" == "cuda" ]] && command -v nvidia-smi >/dev/null 2>&1; then
+    COMPUTE_CAP="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1)"
+    if [[ -n "$COMPUTE_CAP" ]]; then
+        CAP_MAJOR="${COMPUTE_CAP%%.*}"
+        if [[ "$CAP_MAJOR" -ge 12 ]] && [[ "$CUDA_INDEX" != cu12[89]* ]] && [[ "$CUDA_INDEX" != cu13* ]]; then
+            warn "Detected a Blackwell-class GPU (compute capability $COMPUTE_CAP) but CUDA_INDEX=$CUDA_INDEX."
+            warn "This combination is known to hang or fail on RTX 50-series cards. Use --cuda cu128 (the default) instead."
+        fi
     fi
 fi
 
