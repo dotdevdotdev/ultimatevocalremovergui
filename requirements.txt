@@ -39,6 +39,9 @@ onnx2pytorch
 # --- Audio mastering ---
 matchering
 
+# --- CLI (api/ package) ---
+pydantic
+
 # --- GUI / application ---
 pyglet
 pyperclip
