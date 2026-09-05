@@ -42,6 +42,28 @@ if TYPE_CHECKING:
 mps_available = torch.backends.mps.is_available() if is_macos else False
 cuda_available = torch.cuda.is_available()
 
+if cuda_available:
+    # torch.cuda.is_available() only checks that a driver/device is present --
+    # it does not check whether this torch build ships kernels for the GPU's
+    # compute capability. An unsupported arch (e.g. RTX 50-series/Blackwell,
+    # sm_120, on a torch build compiled without it) passes is_available() but
+    # then hangs or errors ("no kernel image is available") during inference.
+    # Detect that mismatch up front and fall back to CPU with a clear reason
+    # instead of a silent hang.
+    try:
+        device_cap = "sm_{}{}".format(*torch.cuda.get_device_capability(0))
+        supported_archs = torch.cuda.get_arch_list()
+        if supported_archs and device_cap not in supported_archs:
+            print(
+                f"[GPU] Detected GPU compute capability {device_cap}, but this "
+                f"torch build only supports {supported_archs}. Falling back to "
+                f"CPU. Install a torch build with support for your GPU "
+                f"(see install_linux.sh / pytorch.org) to use GPU acceleration."
+            )
+            cuda_available = False
+    except Exception:
+        pass
+
 # def get_gpu_info():
 #     directml_device, directml_available = DIRECTML_DEVICE, False
     
