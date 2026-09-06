@@ -19,6 +19,13 @@ audioread
 pydub
 resampy
 six
+# librosa.resample lazily imports `samplerate` for several res_type values
+# (e.g. the VR-arch model params' default type) on non-ARM platforms --
+# separate.py forces 'polyphase' (scipy-backed, no samplerate needed) on
+# Apple Silicon only, so this was missed by grepping our own code for direct
+# imports during the original dependency modernization. Confirmed via CI:
+# broke every VR-architecture separation on Linux/Windows/Intel Mac.
+samplerate
 
 # --- Deep learning (install torch/torchvision separately; see header) ---
 einops
