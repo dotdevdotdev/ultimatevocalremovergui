@@ -1,0 +1,73 @@
+name: Smoke test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg python3-tk rubberband-cli
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg rubberband
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Create venv
+        run: uv venv .venv
+
+      - name: Set VENV_BIN (Unix)
+        if: runner.os != 'Windows'
+        run: echo "VENV_BIN=.venv/bin" >> "$GITHUB_ENV"
+
+      - name: Set VENV_BIN (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "VENV_BIN=.venv/Scripts" >> "$GITHUB_ENV"
+
+      - name: Install torch (CPU -- no GPU runners on hosted CI)
+        shell: bash
+        run: uv pip install --python "$VENV_BIN/python" torch torchvision
+
+      - name: Install requirements
+        shell: bash
+        run: uv pip install --python "$VENV_BIN/python" -r requirements.txt
+
+      - name: Doctor (environment check)
+        shell: bash
+        run: '"$VENV_BIN/python" tools/smoke_inference.py doctor'
+
+      - name: Run blocking smoke cases (real inference, CPU-only)
+        shell: bash
+        timeout-minutes: 25
+        run: '"$VENV_BIN/python" tools/smoke_inference.py run --phase blocking --continue-on-error'
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-results-${{ matrix.os }}
+          path: .research-artifacts/smoke/smoke_results.jsonl
