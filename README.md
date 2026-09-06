@@ -1,8 +1,27 @@
-# Ultimate Vocal Remover GUI v5.6
+# Ultimate Vocal Remover GUI v5.6 (maintained fork)
 <img src="https://raw.githubusercontent.com/Anjok07/ultimatevocalremovergui/master/gui_data/img/UVR_v5.6.png?raw=true" />
 
+[![Smoke test](https://github.com/dotdevdotdev/ultimatevocalremovergui/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/dotdevdotdev/ultimatevocalremovergui/actions/workflows/smoke-test.yml)
 [![Release](https://img.shields.io/github/release/anjok07/ultimatevocalremovergui.svg)](https://github.com/anjok07/ultimatevocalremovergui/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/anjok07/ultimatevocalremovergui/total.svg)](https://github.com/anjok07/ultimatevocalremovergui/releases)
+
+## About this fork
+
+The upstream project ([anjok07/ultimatevocalremovergui](https://github.com/Anjok07/ultimatevocalremovergui)) hasn't had a real commit since October 2023, and has 1,500+ open issues — many of them install/compatibility failures on current systems, since its pinned dependencies (numpy, librosa, torch, onnxruntime, Pillow, ...) are now 2-3 years out of date. This fork exists to get those specific problems fixed and keep them fixed, while staying otherwise faithful to the original app.
+
+**What's been fixed here, verified with real inference (not just import/launch testing):**
+
+- **Dependency modernization** — unpinned/updated `requirements.txt` for current Python/numpy/librosa/torch/onnxruntime, fixing install failures on current Linux, Windows, and macOS. ([#1](https://github.com/dotdevdotdev/ultimatevocalremovergui/issues/1))
+- **New Linux install script** (`install_linux.sh`) with automatic GPU/CPU + CUDA-version detection.
+- **RTX 40/50-series (Blackwell) GPU fix** — the app now detects when the installed torch build lacks kernels for your GPU and falls back to CPU with a clear message, instead of hanging silently. ([#2](https://github.com/dotdevdotdev/ultimatevocalremovergui/issues/2))
+- **A headless CLI** (`cli.py`) — run separations, list models, and download models from the command line, no GUI/display required. Useful for scripting, servers, and batch jobs. ([#3](https://github.com/dotdevdotdev/ultimatevocalremovergui/issues/3), see [CLI usage](#command-line-usage) below)
+- **Apple Silicon (MPS) inference backend** — proper GPU acceleration on M-series Macs, with correct fallback for the operations MPS doesn't support. Verified on real Apple Silicon hardware, not simulated. ([#4](https://github.com/dotdevdotdev/ultimatevocalremovergui/issues/4))
+- **Windows compatibility fixes**, verified via CI. ([#9](https://github.com/dotdevdotdev/ultimatevocalremovergui/issues/9))
+- **Continuous integration**: every push runs real separations (not just an import check) through VR, MDX, MDXC, and Demucs models on hosted Linux, Windows, and macOS runners — see the badge above. This is what caught the fixes above in the first place, and what keeps them fixed going forward.
+
+**What's still open / not done:** the [tracking issue](https://github.com/dotdevdotdev/ultimatevocalremovergui/issues/12) is the single source of truth for current status, what's verified vs. reasoned-through-but-untested, and what's next (real GPU hardware testing, optional feature work like additional model architectures or a web UI). Bug reports, PRs, and hardware to test on are all welcome — see [Contributing](#contributing).
+
+This fork keeps the original MIT license and full credit to the original authors below — this is a maintenance effort, not a rewrite or a rebrand.
 
 ## About
 
@@ -149,8 +168,20 @@ This process has been tested on a MacBook Pro 2021 (using M1) and a MacBook Air 
 
 ### Linux Installation (Updated Instructions)
 
+**Quick start (this fork):** clone the repo and run `./install_linux.sh`. It creates a virtual environment, detects whether you have an NVIDIA GPU (installing the matching CUDA build of PyTorch, cu128 by default — needed for RTX 50-series/Blackwell) or falls back to CPU-only PyTorch, and checks for missing system packages (ffmpeg, python3-tk, rubberband) up front instead of failing partway through. See `./install_linux.sh --help` for options (`--cpu`, `--cuda <index>`, `--venv <dir>`).
+
+```bash
+git clone https://github.com/dotdevdotdev/ultimatevocalremovergui.git
+cd ultimatevocalremovergui
+./install_linux.sh
+source venv/bin/activate
+python UVR.py
+```
+
+If you'd rather set it up manually, or `install_linux.sh` doesn't fit your system, the step-by-step instructions below still apply.
+
 <details id="LinuxInstall">
-  <summary>See Linux Installation Instructions</summary>
+  <summary>See Manual Linux Installation Instructions</summary>
 
 <br />
 
@@ -253,6 +284,26 @@ If you encounter issues, refer to the [GitHub Issues](https://github.com/Anjok07
 ### Performance:
 - Model load times are faster.
 - Importing/exporting audio files is faster.
+
+## Command Line Usage
+
+`cli.py` runs separations without launching the GUI — useful for scripting, servers, or batch jobs. It reuses the same unmodified separation engines as the desktop app (via a small headless shim), so results match the GUI exactly.
+
+```bash
+# List available models, and which ones you already have installed
+python cli.py list-models
+
+# Download a model by its catalog display name
+python cli.py download-model mdx "UVR-MDX-NET Inst HQ 3"
+
+# Separate a file into stems
+python cli.py separate -i song.wav -o ./output --arch mdx --model UVR-MDX-NET-Inst_HQ_3
+
+# Force CPU or GPU, choose output format, etc. -- see --help
+python cli.py separate --help
+```
+
+`--arch` is one of `vr`, `mdx`, or `demucs`; `--model` is the model's basename as shown by `list-models`.
 
 ## Inference Backends
 
@@ -388,6 +439,12 @@ The **Ultimate Vocal Remover GUI** code is [MIT-licensed](LICENSE).
 - For anyone interested in the ongoing development of **Ultimate Vocal Remover GUI**, please send us a pull request, and we will review it. 
 - This project is 100% open-source and free for anyone to use and modify as they wish. 
 - We only maintain the development and support for the **Ultimate Vocal Remover GUI** and the models provided. 
+
+### This fork specifically
+
+- Check the [tracking issue](https://github.com/dotdevdotdev/ultimatevocalremovergui/issues/12) first — it's the current source of truth for what's verified, what's reasoned-through-but-untested, and what's next.
+- Real hardware testing is the highest-leverage thing you can contribute right now, especially NVIDIA GPUs (RTX 40/50-series) and a variety of Linux distros — CI covers CPU-only paths on GitHub's hosted runners, but not GPU/CUDA or real-world driver variance.
+- Before merging any change touching `librosa`/`numpy`/`scipy`/`torch`/`api/`, run `tools/smoke_inference.py` (see [Developer Smoke Tests](#developer-smoke-tests)) — import-only or error-path-only testing has twice let real regressions through in this fork's history (see the tracking issue's "lessons learned").
 
 ## References
 - [1] Takahashi et al., "Multi-scale Multi-band DenseNets for Audio Source Separation", https://arxiv.org/pdf/1706.09588.pdf
