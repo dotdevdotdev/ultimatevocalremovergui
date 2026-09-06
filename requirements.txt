@@ -30,10 +30,11 @@ ml_collections
 
 # --- ONNX runtime / conversion ---
 onnx
-# onnxruntime-gpu has no macOS wheels; macOS always uses the CPU runtime.
+# onnxruntime-gpu has no macOS wheels; plain onnxruntime also provides the
+# CoreML execution provider used by inference_backend.py on Apple Silicon.
 # ONNX GPU runtime: 1.21.x targets CUDA 12.x; 1.22+ requires CUDA 13.
+onnxruntime
 onnxruntime-gpu>=1.19,<1.22; sys_platform != 'darwin'
-onnxruntime; sys_platform == 'darwin'
 onnx2pytorch
 
 # --- Audio mastering ---
