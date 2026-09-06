@@ -58,65 +58,50 @@ def _load_json(path: str) -> dict:
 
 
 # --- Default settings -------------------------------------------------------
-# Mirrors the GUI's default state for the subset of settings ``ModelData``
-# reads.  Anything a request wants to override is merged on top of these.
-# Keys are the tkinter var names WITHOUT the trailing ``_var``.
-DEFAULT_SETTINGS: dict[str, Any] = {
-    # device / general
-    "device_set": "Default",
-    "is_gpu_conversion": False,
-    "is_normalization": False,
-    "is_invert_spec": False,
-    "is_primary_stem_only": False,
-    "is_secondary_stem_only": False,
-    "semitone_shift": "0",
-    "is_match_frequency_pitch": True,
-    # denoise / deverb
-    "denoise_option": "None",            # DENOISE_NONE
-    "is_deverb_vocals": False,
-    "deverb_vocal_opt": "Main Vocals Only",
-    # output format
-    "save_format": "WAV",
-    "mp3_bit_set": "320k",
-    # secondary models / ensemble (all disabled in headless single-model mode)
-    "vr_is_secondary_model_activate": False,
-    "mdx_is_secondary_model_activate": False,
-    "demucs_is_secondary_model_activate": False,
-    "is_demucs_pre_proc_model_activate": False,
-    "is_demucs_pre_proc_model_inst_mix": False,
-    "is_save_inst_set_vocal_splitter": False,
-    "chosen_process_method": "",
-    "ensemble_main_stem": "Choose Stem Pair",
-    # VR Arch
-    "aggression_setting": "10",
-    "is_tta": False,
-    "is_post_process": False,
-    "window_size": "512",
-    "batch_size": "Default",
-    "crop_size": "256",
-    "is_high_end_process": False,
-    "post_process_threshold": "0.2",
-    # MDX-Net
-    "margin": "44100",
-    "mdx_segment_size": "256",
-    "mdx_batch_size": "Default",
-    "compensate": "Auto",
-    "overlap": "Default",
-    "overlap_mdx": "Default",
-    "overlap_mdx23": "8",
-    "is_mdx_c_seg_def": False,
-    "is_mdx23_combine_stems": True,
-    "mdxnet_stems": "All Stems",
-    # Demucs
-    "demucs_stems": "All Stems",
-    "is_demucs_combine_stems": True,
-    "margin_demucs": "44100",
-    "shifts": "2",
-    "segment": "Default",
-    "is_split_mode": True,
-    "is_chunk_demucs": False,
-    "is_primary_stem_only_Demucs": False,
-    "is_secondary_stem_only_Demucs": False,
+# Sourced from gui_data.constants.DEFAULT_DATA -- the same dict MainWindow
+# uses to seed every *_var it creates. Importing it directly (instead of a
+# hand-curated subset) means new settings ModelData/the engines start reading
+# are covered automatically instead of surfacing one at a time as
+# AttributeErrors when upstream adds a var (e.g. 'backend_mode', added
+# alongside the MPS inference backend). A few entries in DEFAULT_DATA are
+# plain attributes on MainWindow rather than *_var Vars (input_paths, lastDir,
+# wav_type_set, model_hash_table, ...); those are set explicitly below and
+# excluded from the *_var loop via _NON_VAR_KEYS.
+def _default_settings() -> dict[str, Any]:
+    from gui_data.constants import DEFAULT_DATA  # noqa: PLC0415
+
+    defaults = {k: v for k, v in DEFAULT_DATA.items() if k not in _NON_VAR_KEYS}
+    return {**_hardcoded_var_defaults(), **defaults}
+
+
+def _hardcoded_var_defaults() -> dict[str, Any]:
+    """A handful of *_var attributes MainWindow.__init__ sets directly to a
+    constant rather than sourcing from DEFAULT_DATA (e.g. ``mdxnet_stems_var =
+    tk.StringVar(value=ALL_STEMS)`` -- note the key mismatch with DEFAULT_DATA's
+    own unrelated ``mdx_stems``/``demucs_stems`` entries). ModelData reads these
+    directly, so they need to be present even though DEFAULT_DATA doesn't
+    carry them. Sourced from the same constants UVR.py uses, so they stay in
+    sync if upstream changes the hardcoded value."""
+    from gui_data.constants import (  # noqa: PLC0415
+        ALL_STEMS,
+        CHOOSE_ENSEMBLE_OPTION,
+        CHOOSE_STEM_PAIR,
+        MAX_MIN,
+    )
+
+    return {
+        "demucs_stems": ALL_STEMS,
+        "mdxnet_stems": ALL_STEMS,
+        "chosen_ensemble": CHOOSE_ENSEMBLE_OPTION,
+        "ensemble_main_stem": CHOOSE_STEM_PAIR,
+        "ensemble_type": MAX_MIN,
+    }
+
+
+_NON_VAR_KEYS = {
+    "wav_type_set", "user_code", "export_path", "input_paths", "lastDir",
+    "fileOneEntry", "fileOneEntry_Full", "fileTwoEntry", "fileTwoEntry_Full",
+    "DualBatch_inputPaths", "model_hash_table", "help_hints_var",
 }
 
 
@@ -126,13 +111,13 @@ class HeadlessRoot:
 
     Only the attributes/methods that ``ModelData`` and the ``Seperate*`` engines
     actually touch are implemented.  Settings provided via ``overrides`` win over
-    :data:`DEFAULT_SETTINGS`.
+    :func:`_default_settings` (sourced from ``gui_data.constants.DEFAULT_DATA``).
     """
 
     overrides: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        merged = {**DEFAULT_SETTINGS, **self.overrides}
+        merged = {**_default_settings(), **self.overrides}
         for name, value in merged.items():
             setattr(self, f"{name}_var", _Var(value))
 

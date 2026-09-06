@@ -39,31 +39,36 @@ jobs:
       - name: Create venv
         run: uv venv .venv
 
-      - name: Set VENV_BIN (Unix)
+      - name: Set VENV_PY (Unix)
         if: runner.os != 'Windows'
-        run: echo "VENV_BIN=.venv/bin" >> "$GITHUB_ENV"
+        run: echo "VENV_PY=.venv/bin/python" >> "$GITHUB_ENV"
 
-      - name: Set VENV_BIN (Windows)
+      - name: Set VENV_PY (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: echo "VENV_BIN=.venv/Scripts" >> "$GITHUB_ENV"
+        run: echo "VENV_PY=.venv/Scripts/python.exe" >> "$GITHUB_ENV"
 
       - name: Install torch (CPU -- no GPU runners on hosted CI)
         shell: bash
-        run: uv pip install --python "$VENV_BIN/python" torch torchvision
+        run: uv pip install --python "$VENV_PY" torch torchvision
 
       - name: Install requirements
         shell: bash
-        run: uv pip install --python "$VENV_BIN/python" -r requirements.txt
+        run: uv pip install --python "$VENV_PY" -r requirements.txt
 
       - name: Doctor (environment check)
         shell: bash
-        run: '"$VENV_BIN/python" tools/smoke_inference.py doctor'
+        run: '"$VENV_PY" tools/smoke_inference.py doctor'
+
+      - name: Prepare (generate test audio + download model assets)
+        shell: bash
+        timeout-minutes: 10
+        run: '"$VENV_PY" tools/smoke_inference.py prepare'
 
       - name: Run blocking smoke cases (real inference, CPU-only)
         shell: bash
         timeout-minutes: 25
-        run: '"$VENV_BIN/python" tools/smoke_inference.py run --phase blocking --continue-on-error'
+        run: '"$VENV_PY" tools/smoke_inference.py run --phase blocking --continue-on-error'
 
       - name: Upload results
         if: always()
